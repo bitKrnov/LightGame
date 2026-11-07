@@ -1,18 +1,18 @@
 #include <FastLED.h>
 
-// --- KONFIGURACE HARDWARU ---
+// --- HARDWARE CONFIGURATION ---
 #define NUM_LEDS     55
-#define DATA_PIN     6       // Datový pin pro LED pásek WS2812B
-#define BTN_RED_PIN   2       // Tlačítko ČERVENÁ
-#define BTN_GREEN_PIN 3       // Tlačítko ZELENÁ
-#define BTN_BLUE_PIN  4       // Tlačítko MODRÁ
+#define DATA_PIN     6       // Data pin for WS2812B LED strip
+#define BTN_RED_PIN   2       // RED Button
+#define BTN_GREEN_PIN 3       // GREEN Button
+#define BTN_BLUE_PIN  4       // BLUE Button
 
-#define MAX_BRIGHTNESS 64    // Limit jasu (64 / 255 = ~25 %, bezpečné pro USB)
-#define TOTAL_GAMES 9        // Celkový počet her
+#define MAX_BRIGHTNESS 64    // Brightness limit (64 / 255 = ~25%, safe for USB)
+#define TOTAL_GAMES 9        // Total number of games
 
 CRGB leds[NUM_LEDS];
 
-// Herní stav
+// Game State Machine
 enum GameState {
   STATE_MENU,
   STATE_COUNTDOWN,
@@ -24,12 +24,12 @@ GameState currentState = STATE_MENU;
 uint8_t selectedGame = 1;
 uint32_t finalScore = 0;
 
-// --- POMOCNÉ FUNKCE PRO TLAČÍTKA ---
+// --- BUTTON HELPER FUNCTIONS ---
 bool isButtonPressed(uint8_t pin) {
   if (digitalRead(pin) == LOW) {
-    delay(20); // Debounce
+    delay(20); // Debounce delay
     if (digitalRead(pin) == LOW) {
-      while (digitalRead(pin) == LOW); // Čekání na uvolnění
+      while (digitalRead(pin) == LOW); // Wait for release
       return true;
     }
   }
@@ -61,7 +61,7 @@ void setup() {
   FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(MAX_BRIGHTNESS);
   
-  // Bezpečnostní omezení spotřeby na 5V a max 500mA z USB-C
+  // Power management limit: 5V and max 500mA for USB-C
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 500);
 
   pinMode(BTN_RED_PIN, INPUT_PULLUP);
@@ -73,7 +73,7 @@ void setup() {
   FastLED.show();
 }
 
-// --- HLAVNÍ SMYČKA ---
+// --- MAIN LOOP ---
 void loop() {
   switch (currentState) {
     case STATE_MENU:
@@ -93,7 +93,7 @@ void loop() {
 }
 
 // ==========================================
-// MENU & ODPOČET & EFEKTY
+// MENU, COUNTDOWN & EFFECTS
 // ==========================================
 
 void runMenu() {
@@ -110,14 +110,14 @@ void runMenu() {
   FastLED.clear();
   for (uint8_t i = 0; i < TOTAL_GAMES; i++) {
     if (i == (selectedGame - 1)) {
-      leds[i] = CRGB(pulseVal, pulseVal, 0); // Vybraná hra pulzuje žlutě
+      leds[i] = CRGB(pulseVal, pulseVal, 0); // Selected game pulses yellow
     } else {
-      leds[i] = CRGB(0, 0, 20);             // Ostatní hry svítí slabě modře
+      leds[i] = CRGB(0, 0, 20);             // Other games glow dim blue
     }
   }
   FastLED.show();
 
-  // Ovládání: Červená = Zpět | Zelená = Vpřed | Modrá = Potvrdit
+  // Controls: Red = Previous | Green = Next | Blue = Confirm
   if (isButtonPressed(BTN_RED_PIN)) {
     selectedGame = (selectedGame > 1) ? selectedGame - 1 : TOTAL_GAMES;
   }
@@ -155,7 +155,7 @@ void runCountdown() {
 }
 
 void runGameOverEffect() {
-  // Probliknutí červenou barvou
+  // Flash red to indicate game over
   for (int i = 0; i < 3; i++) {
     fill_solid(leds, NUM_LEDS, CRGB::Red);
     FastLED.show();
@@ -165,7 +165,7 @@ void runGameOverEffect() {
     delay(120);
   }
 
-  // Zobrazení skóre na LED pásku (počet zelených diod)
+  // Display score bar using green LEDs
   FastLED.clear();
   uint16_t scoreLeds = min((uint16_t)finalScore, (uint16_t)NUM_LEDS);
   for (uint16_t i = 0; i < scoreLeds; i++) {
@@ -191,7 +191,7 @@ void launchSelectedGame(uint8_t gameId) {
 }
 
 // ==========================================
-// 1. STŘELNICE (Základní hra)
+// GAME 1: TARGET SHOOTER
 // ==========================================
 void playGame1_TargetShooter() {
   int targetPos = NUM_LEDS - 1;
@@ -243,11 +243,11 @@ void playGame1_TargetShooter() {
 }
 
 // ==========================================
-// 2. MÍCHÁNÍ BAREV (Složitější varianta)
+// GAME 2: COLOR MIXER
 // ==========================================
 void playGame2_ColorMixer() {
   int targetPos = NUM_LEDS - 1;
-  uint8_t targetType = random(0, 6); // 0-2 základní, 3-5 smíchané
+  uint8_t targetType = random(0, 6); // 0-2 Primary colors, 3-5 Mixed colors
   CRGB targetColor = getColorFromIndex(targetType);
 
   unsigned long lastMoveTime = millis();
@@ -266,16 +266,16 @@ void playGame2_ColorMixer() {
 
     uint8_t mask = getPressedButtonsMask();
     if (mask != 0) {
-      delay(40); // Krátké okno pro zmáčknutí dvou tlačítek naráz
+      delay(40); // Short window to register simultaneous dual-button press
       mask = getPressedButtonsMask();
 
       uint8_t shotType = 255;
-      if (mask == 0x01) shotType = 0; // Červená
-      else if (mask == 0x02) shotType = 1; // Zelená
-      else if (mask == 0x04) shotType = 2; // Modrá
-      else if (mask == 0x03) shotType = 3; // Žlutá (R+G)
-      else if (mask == 0x05) shotType = 4; // Fialová (R+B)
-      else if (mask == 0x06) shotType = 5; // Azurová (G+B)
+      if (mask == 0x01) shotType = 0; // Red
+      else if (mask == 0x02) shotType = 1; // Green
+      else if (mask == 0x04) shotType = 2; // Blue
+      else if (mask == 0x03) shotType = 3; // Yellow (R+G)
+      else if (mask == 0x05) shotType = 4; // Magenta (R+B)
+      else if (mask == 0x06) shotType = 5; // Cyan (G+B)
 
       if (shotType != 255) {
         CRGB shotColor = getColorFromIndex(shotType);
@@ -293,7 +293,7 @@ void playGame2_ColorMixer() {
           targetPos = NUM_LEDS - 1;
           targetType = random(0, 6);
           targetColor = getColorFromIndex(targetType);
-          while(getPressedButtonsMask() != 0); // Čekání na uvolnění
+          while(getPressedButtonsMask() != 0); // Wait for button release
         } else {
           currentState = STATE_GAME_OVER;
           return;
@@ -304,7 +304,7 @@ void playGame2_ColorMixer() {
 }
 
 // ==========================================
-// 3. REFLEXNÍ PING-PONG
+// GAME 3: REFLEX PING-PONG
 // ==========================================
 void playGame3_ReflexPingPong() {
   float ballPos = NUM_LEDS - 1;
@@ -318,7 +318,7 @@ void playGame3_ReflexPingPong() {
     if (ballPos >= NUM_LEDS - 1 && ballSpeed > 0) { ballSpeed = -ballSpeed; }
 
     FastLED.clear();
-    // Odrazová zóna (první 3 LED)
+    // Bounce zone (first 3 LEDs)
     leds[0] = leds[1] = leds[2] = CRGB(15, 15, 15);
     leds[(int)ballPos] = getColorFromIndex(ballColorIdx);
     FastLED.show();
@@ -330,7 +330,7 @@ void playGame3_ReflexPingPong() {
 
     if (pressed != -1) {
       if (ballPos <= 4 && pressed == ballColorIdx && ballSpeed < 0) {
-        ballSpeed = -ballSpeed * 1.08; // Zrychlení po zásahu
+        ballSpeed = -ballSpeed * 1.08; // Accelerate ball after successful return
         ballColorIdx = random(0, 3);
         finalScore++;
         while (digitalRead(BTN_RED_PIN) == LOW || digitalRead(BTN_GREEN_PIN) == LOW || digitalRead(BTN_BLUE_PIN) == LOW);
@@ -344,7 +344,7 @@ void playGame3_ReflexPingPong() {
 }
 
 // ==========================================
-// 4. PAMĚŤOVKA (Simon Says)
+// GAME 4: SIMON SAYS (MEMORY GAME)
 // ==========================================
 void playGame4_SimonSays() {
   uint8_t sequence[30];
@@ -354,7 +354,7 @@ void playGame4_SimonSays() {
     sequence[seqLength] = random(0, 3);
     seqLength++;
 
-    // Přehrání sekvence
+    // Playback sequence
     for (uint8_t i = 0; i < seqLength; i++) {
       FastLED.clear();
       fill_solid(leds, NUM_LEDS, getColorFromIndex(sequence[i]));
@@ -365,7 +365,7 @@ void playGame4_SimonSays() {
       delay(150);
     }
 
-    // Hráč opakuje sekvenci
+    // Player repeats sequence
     for (uint8_t i = 0; i < seqLength; i++) {
       int pressed = -1;
       while (pressed == -1) {
@@ -391,10 +391,10 @@ void playGame4_SimonSays() {
 }
 
 // ==========================================
-// 5. LASEROVÝ BĚH (Dodger / Vyhýbačka)
+// GAME 5: LASER DODGER
 // ==========================================
 void playGame5_LaserDodger() {
-  int playerShield = 0; // 0=Červená, 1=Zelená, 2=Modrá
+  int playerShield = 0; // 0=Red, 1=Green, 2=Blue
   int enemyPos = NUM_LEDS - 1;
   int enemyColorIdx = random(0, 3);
   unsigned long lastMove = millis();
@@ -423,15 +423,15 @@ void playGame5_LaserDodger() {
     }
 
     FastLED.clear();
-    leds[0] = getColorFromIndex(playerShield); // Hráčův štít
-    leds[enemyPos] = getColorFromIndex(enemyColorIdx); // Překážka
+    leds[0] = getColorFromIndex(playerShield); // Player shield
+    leds[enemyPos] = getColorFromIndex(enemyColorIdx); // Incoming obstacle
     FastLED.show();
     delay(10);
   }
 }
 
 // ==========================================
-// 6. ČASOVANÁ BOMBA (Defuse)
+// GAME 6: BOMB DEFUSE
 // ==========================================
 void playGame6_BombDefuse() {
   int bombPos = 0;
@@ -447,8 +447,8 @@ void playGame6_BombDefuse() {
     }
 
     FastLED.clear();
-    for (int i = 0; i < bombPos; i++) leds[i] = CRGB::Red; // Bomba se plní
-    leds[targetLed] = getColorFromIndex(targetColorIdx); // Cílový bod
+    for (int i = 0; i < bombPos; i++) leds[i] = CRGB::Red; // Bomb fuse fills up
+    leds[targetLed] = getColorFromIndex(targetColorIdx); // Target disarm LED
     FastLED.show();
 
     int pressed = -1;
@@ -459,7 +459,7 @@ void playGame6_BombDefuse() {
     if (pressed != -1) {
       if (abs(bombPos - targetLed) <= 2 && pressed == targetColorIdx) {
         finalScore++;
-        bombPos = max(0, bombPos - 15); // Zneškodnění posune bombu zpět
+        bombPos = max(0, bombPos - 15); // Disarming pushes fuse back
         targetLed = random(10, 45);
         targetColorIdx = random(0, 3);
       } else {
@@ -471,11 +471,11 @@ void playGame6_BombDefuse() {
 }
 
 // ==========================================
-// 7. DUELY RYCHLOSTI (Rychloprst)
+// GAME 7: SPEED DUEL
 // ==========================================
 void playGame7_SpeedDuel() {
   FastLED.clear(); FastLED.show();
-  delay(random(2000, 5000)); // Náhodné čekání
+  delay(random(2000, 5000)); // Random delay before signal
 
   uint8_t targetColorIdx = random(0, 3);
   fill_solid(leds, NUM_LEDS, getColorFromIndex(targetColorIdx));
@@ -491,7 +491,7 @@ void playGame7_SpeedDuel() {
     if (pressed != -1) {
       unsigned long reactionTime = millis() - startTime;
       if (pressed == targetColorIdx) {
-        // Skóre přepočítané podle rychlosti reakce
+        // Score calculated based on reaction speed
         finalScore = (reactionTime < 1000) ? (1000 - reactionTime) / 20 : 1;
       } else {
         finalScore = 0;
@@ -503,7 +503,7 @@ void playGame7_SpeedDuel() {
 }
 
 // ==========================================
-// 8. BAREVNÝ RYTHMUS (1D Guitar Hero)
+// GAME 8: 1D GUITAR HERO (RHYTHM GAME)
 // ==========================================
 struct Note {
   int pos;
@@ -519,7 +519,7 @@ void playGame8_GuitarHero() {
   unsigned long lastMove = millis();
 
   while (true) {
-    // Generování tónů
+    // Spawn notes
     if (millis() - lastSpawn > 1200) {
       lastSpawn = millis();
       for (int i = 0; i < 5; i++) {
@@ -532,7 +532,7 @@ void playGame8_GuitarHero() {
       }
     }
 
-    // Posun tónů
+    // Move notes
     if (millis() - lastMove > 60) {
       lastMove = millis();
       for (int i = 0; i < 5; i++) {
@@ -544,7 +544,7 @@ void playGame8_GuitarHero() {
     }
 
     FastLED.clear();
-    leds[0] = CRGB::White; // Cílová zóna
+    leds[0] = CRGB::White; // Target hit zone
     for (int i = 0; i < 5; i++) {
       if (notes[i].active) leds[notes[i].pos] = getColorFromIndex(notes[i].colorIdx);
     }
@@ -571,36 +571,36 @@ void playGame8_GuitarHero() {
 }
 
 // ==========================================
-// 9. TUG OF WAR (Přetahovaná pro 2 hráče)
+// GAME 9: TUG OF WAR (2 PLAYERS)
 // ==========================================
 void playGame9_TugOfWar() {
-  int pos = NUM_LEDS / 2; // Světelný bod začíná uprostřed (LED 27)
+  int pos = NUM_LEDS / 2; // Light marker starts in center (LED 27)
 
   while (true) {
     FastLED.clear();
     leds[pos] = CRGB::Yellow;
-    // Okraje (branky)
+    // Goal lines
     leds[0] = CRGB::Red;
     leds[NUM_LEDS - 1] = CRGB::Blue;
     FastLED.show();
 
-    // Hráč 1 (Červené tlačítko) táhne doleva
+    // Player 1 (Red Button) pulls left
     if (isButtonPressed(BTN_RED_PIN)) {
       pos--;
     }
-    // Hráč 2 (Modré tlačítko) táhne doprava
+    // Player 2 (Blue Button) pulls right
     if (isButtonPressed(BTN_BLUE_PIN)) {
       pos++;
     }
 
-    // Vyhodnocení výhry
+    // Check win conditions
     if (pos <= 0) {
-      finalScore = 1; // Výhra Hráče 1
+      finalScore = 1; // Player 1 wins
       currentState = STATE_GAME_OVER;
       return;
     }
     if (pos >= NUM_LEDS - 1) {
-      finalScore = NUM_LEDS; // Výhra Hráče 2
+      finalScore = NUM_LEDS; // Player 2 wins
       currentState = STATE_GAME_OVER;
       return;
     }
